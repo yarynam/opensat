@@ -1,0 +1,42 @@
+Opensat 
+
+== DONE ==
+1. Create opensat directories within user's home directories
+
+2. Check for server errors 
+
+3. Download all Landsat bands by scene ID
+/ python opensat.py download -s LC80020252016253LGN00 
+
+4. Download selected Landsat bands by scene ID
+/ python opensat.py download -s LC80020252016253LGN00 -b 2,3,4
+
+5. Download all Sentinel bands by scene ID 
+/python opensat.py download -s S2A_tile_20160823_19TDJ_0 
+
+6. Download selected Sentinel bands by scene ID 
+/python opensat.py download -s S2A_tile_20160823_19TDJ_0 -b 1,3,10
+
+7. Search/download all scenes for Landsat path 
+/python opensat.py search -p 13,32
+
+8. Search/download all scenes for Landsat path with particular cloud coverage
+/python opensat.py search -p 13,32 -c 5
+
+9. Search/download all scenes for Sentinal path
+/python opensat.py search -p 18TXL
+
+10. Search/download all scenes for Sentinal path with particular cloud coverage 
+/python opensat.py search -p 18TWL -c 10
+
+
+== T0-DO ==
+1.Fix socket.error: [Errno 60] Operation timed out
+
+2.Check if file already exists
+
+3.Check simultanious download
+
+4.Combining bands 
+
+5.Calvulating NDVI
