@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import os
 import sys
 import requests
@@ -86,7 +87,7 @@ def get_list(pic):
     if status == 200: 
         return r.json()
     else: 
-        sys.exit( bcolors.FAIL + str(status) + " ERROR. Please check later." + bcolors.ENDC)
+        sys.exit(bcolors.FAIL + str(status) + " ERROR. Please check later." + bcolors.ENDC)
 
 
 def create_directory(pic):
@@ -131,21 +132,28 @@ def download(pic):
     dowloaded_path = create_directory(pic)
     for url in urls:
         local_filename = url.split('/')[-1]
-        print "Downloading " + local_filename
-        response = requests.get(url, stream=True)
-        local_filename = url.split('/')[-1]
-        file_chunk_size = int(response.headers['content-length'])/99
-        with open(dowloaded_path + "/" + local_filename, 'wb') as f:
-            for chunk in tqdm(response.iter_content(chunk_size = file_chunk_size), unit='%'):
-                f.write(chunk)
-        print bcolors.OKGREEN + "Success! " + local_filename + " is downloaded!" + bcolors.ENDC 
-        print "This file is saved to " + dowloaded_path
-        print " "
+        check = os.path.isfile(dowloaded_path + "/" + local_filename)
+        if check == True:
+            print bcolors.WARNING + local_filename + " is already downloaded" + bcolors.ENDC 
+        else: 
+            print "Downloading " + local_filename
+            response = requests.get(url, stream=True, timeout=120)
+            local_filename = url.split('/')[-1]
+            file_chunk_size = int(response.headers['content-length'])/99
+            with open(dowloaded_path + "/" + local_filename, 'wb') as f:
+                for chunk in tqdm(response.iter_content(chunk_size = file_chunk_size), unit='%'):
+                    f.write(chunk)
+            print bcolors.OKGREEN + "Success! " + local_filename + " is downloaded!" + bcolors.ENDC 
+            print "This file is saved to " + dowloaded_path
+            print " "
 
 
 def bulk_objects():
     for  val in bulk_ids:
-        val = Landsat(val, None)
+        if satellite == "landsat":
+            val = Landsat(val, None)
+        elif satellite == "sentinel":
+            val = Sentinel(val,None)
         scene_links(val)
         download(val)
 
@@ -164,51 +172,72 @@ def query_yes_no(question):
     else:
         sys.stdout.write(bcolors.FAIL + "Invalid answer. Please respond with 'yes' or 'no'.\n" + bcolors.ENDC)
 
+cloud_cases = 0
+max_cloud = 0
+min_cloud = 100 
 
 def search_results(pic):
     search = get_list(pic)
-    if args.clouds != None:
+    print bcolors.OKGREEN + "===== List of scenes: =====" + bcolors.ENDC
+    print " "
+
+
+    def print_match():
+        global cloud_cases, max_cloud, min_cloud
+        cloud_cases += 1
+        if scene["cloud_coverage"] > max_cloud: max_cloud = scene["cloud_coverage"]
+        if scene["cloud_coverage"] < min_cloud: min_cloud = scene["cloud_coverage"]
+        bulk_ids.append(scene["scene_id"])
+        print "scene id: " + bcolors.OKGREEN + scene["scene_id"] + bcolors.ENDC
+        print "date:", scene["date"]
+        print "cloud coverage:", str(scene["cloud_coverage"]) + "%"
+        print "preview:", scene["thumbnail"]
+        print " "
+
+    def print_summary():
+        print " "
+        print "======= SEARCH SUMMARY ======= "
+        if cloud_cases > 0:
+            print bcolors.OKGREEN + str(cloud_cases) + " scenes were found for the search area" + bcolors.ENDC
+            print bcolors.OKGREEN + "The min cloud coverage is " + str(min_cloud) + "%" + bcolors.ENDC
+            print bcolors.OKGREEN + "The max cloud coverage is "  +  str(max_cloud) + "%" + bcolors.ENDC
+            query_yes_no("Do you want to download all "+ str(cloud_cases) + " scenes? " + "[y/n]")
+        else:
+            print bcolors.FAIL + "No results were found" + bcolors.ENDC
+
+
+    if args.clouds != None: #check for clouds condition
         clouds = float(args.clouds)
-        cloud_cases = 0
-        max_cloud = None
-        min_cloud = clouds 
-        print " "
-        print bcolors.OKGREEN + "===== List of scenes: =====" + bcolors.ENDC
-        print " "
         for scene in search["results"]: 
             if scene["cloud_coverage"] <= clouds:
-                bulk_ids.append(scene["scene_id"])
-                cloud_cases += 1
-                if scene["cloud_coverage"] > max_cloud: max_cloud = scene["cloud_coverage"]
-                if scene["cloud_coverage"] < min_cloud: min_cloud = scene["cloud_coverage"]
-                print "scene id: " + bcolors.OKGREEN + scene["scene_id"] + bcolors.ENDC
-                print "date:", scene["date"]
-                print "cloud coverage:", str(scene["cloud_coverage"]) + "%"
-                print "preview:", scene["thumbnail"]
-                print " "
-        print " "
-        print "======= SEARCH SUMMARY ======= "
-        print bcolors.OKGREEN + str(cloud_cases) + " scenes were found for the search area" + bcolors.ENDC
-        print bcolors.OKGREEN + "The min cloud coverage is " + str(min_cloud) + "%" + bcolors.ENDC
-        print bcolors.OKGREEN + "The max cloud coverage is "  +  str(max_cloud) + "%" + bcolors.ENDC
+                print_match()
+        print_summary()
+
+    elif args.date != None: #check for date condition
+        date = args.date.split(",")
+        date_start = datetime.datetime.strptime(date[0], "%Y-%m-%d")
+        date_end = datetime.datetime.strptime(date[1], "%Y-%m-%d")
+        for scene in search["results"]: 
+            data_scene = datetime.datetime.strptime(scene["date"], "%Y-%m-%d")
+            if (data_scene < date_end) & (data_scene > date_start):
+                print_match()
+        print_summary()
+
+    elif (args.clouds != None) & (args.date != None): #check for cloud and date conditions
+        clouds = float(args.clouds)
+        date = args.date.split(",")
+        date_start = datetime.datetime.strptime(date[0], "%Y-%m-%d")
+        date_end = datetime.datetime.strptime(date[1], "%Y-%m-%d")
+        for scene in search["results"]: 
+            data_scene = datetime.datetime.strptime(scene["date"], "%Y-%m-%d")
+            if (data_scene < date_end) & (data_scene > date_start) & scene["cloud_coverage"] <= clouds:
+                print_match()
+        print_summary()
              
-    else:
-        print " "
-        print bcolors.OKGREEN + "===== List of scenes: =====" + bcolors.ENDC
-        print " "
+    else: # print all scenes
         for scene in search["results"]:
-            bulk_ids.append(scene["scene_id"])
-            print "scene id: " + bcolors.OKGREEN + scene["scene_id"] + bcolors.ENDC
-            print "date:", scene["date"]
-            print "cloud coverage:", str(scene["cloud_coverage"]) + "%"
-            print "preview:", scene["thumbnail"]
-            print " "
-        print " "
-        print "======= SEARCH SUMMARY ======= "
-        print bcolors.OKGREEN + str(len(search['results'])) + " scenes were found for the search area" + bcolors.ENDC 
-        print bcolors.OKGREEN + "The min cloud coverage is " + str(min(scene["cloud_coverage"] for scene in search['results'])) + "%" + bcolors.ENDC
-        print bcolors.OKGREEN + "The max cloud coverage is "  +  str(max(scene["cloud_coverage"] for scene in search['results'])) + "%" + bcolors.ENDC
-    query_yes_no("Do you want to download all of them? [y/n]")
+            print_match()
+        print_summary()
 
 
 if scene == None and input_path != None:
