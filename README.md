@@ -68,7 +68,7 @@ $ python opensat.py download -s LC80020252016253LGN00 -b 2,3,4 -p 432
 
 14.Stack bands and run pansharpening after downloading (example with true color for Landsat only)
 ```
-$ python opensat.py download -s LC80020252016253LGN00 -b 2,3,4 -p 4328
+$ python opensat.py download -s LC80020252016253LGN00 -b 2,3,4,8 -p 4328
 ```
 
 14.Mask processed images after downloading with a shapefile (needs a path to a mask file; mask file should have the same projection)
